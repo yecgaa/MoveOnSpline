@@ -9,23 +9,29 @@ public class SplineMove : MonoBehaviour{
 	
 	public float speed = 0.1f;
 	public float offSet = 0f;
-	
-	public float passedTime = 0f;
-	public float pastForce = 0;
+	public float SPEED_MAX=0.1f;
+	public float LIMITED_SPEED = 0.02f;
+
+	public float acc = 0;
 
 	public float DISTANCE_THRESHOLD=100f;
 	private float param=0f;
+	private float clampedParam=0f;
+
+	public float theta=180;
+	private SplineSegment pastSegment=null;
+
 
 	//numbering left to right 0-MAX
 	void Update(){
 		int tmpIndex = this.splineIndex;
 		if (Input.GetAxis ("Horizontal") > 0) {
-			Debug.Log ("Horizontal");
+			 //Debug.Log ("Horizontal");
 			if (this.splineIndex < this.splineList.Length - 1) {
 					tmpIndex = this.splineIndex + 1;
 			}
 		} else if (Input.GetAxis ("Horizontal") < 0) {
-			Debug.Log ("Horizontal");
+			//Debug.Log ("Horizontal");
 			if (this.splineIndex > 0) {
 				tmpIndex = this.splineIndex - 1;
 			}
@@ -45,18 +51,36 @@ public class SplineMove : MonoBehaviour{
 				param = closeParam;
 			}
 		}
-		if (Input.GetAxis("Vertical")>0) {
-			pastForce=Time.deltaTime * speed;
-		} else if (Input.GetAxis("Vertical")<0) {
-			pastForce=-Time.deltaTime * speed;
-		}else if(pastForce>0.00005f){
-			pastForce*=0.95f;
-		}else{
-			pastForce=0;
-		}
-		param += pastForce;
+		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
+		if (pastSegment == null) {
+			pastSegment = ssegment;
+		}else if (pastSegment!=ssegment) {
+			Vector3 pastVec=(-pastSegment.EndNode.Position+pastSegment.StartNode.Position);
+			Vector3 nextVec=ssegment.EndNode.Position-ssegment.StartNode.Position;
 
-		float clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
+			theta=Vector3.Angle(pastVec,nextVec);
+			pastSegment = ssegment;
+		}
+		if (Input.GetAxis("Vertical")>0) {
+			acc+=Time.deltaTime * speed;
+			if(acc>SPEED_MAX){
+				acc=SPEED_MAX;
+			}
+		} else if (Input.GetAxis("Vertical")<0) {
+			//pastForce=-Time.deltaTime * speed;
+		}else if(acc>0.00005f){
+			acc*=0.5f;
+		}else{
+			acc=0;
+		}
+		if (theta<100) {
+			if(acc>LIMITED_SPEED){
+				acc=LIMITED_SPEED;
+			}
+		}
+		param += acc;
+
+		clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
 
 		transform.position = spline.GetPositionOnSpline (clampedParam);
 		transform.rotation = spline.GetOrientationOnSpline (clampedParam);
