@@ -1,16 +1,17 @@
+#define DEBUG
+
 using UnityEngine;
 
 public class SplineMove : MonoBehaviour{
 	public Spline spline=null;
 	public Spline[] splineList=null;
-	private int splineIndex=0;
 	
 	public WrapMode wrapMode = WrapMode.Loop;
 	
-	public float speed = 0.1f;
+	public float speed = 0.0001f;
 	public float offSet = 0f;
-	public float SPEED_MAX=0.1f;
-	public float LIMITED_SPEED = 0.02f;
+	public float SPEED_MAX=0.001f;
+	public float LIMITED_SPEED = 0.001f;
 
 	public float acc = 0;
 
@@ -18,72 +19,88 @@ public class SplineMove : MonoBehaviour{
 	private float param=0f;
 	private float clampedParam=0f;
 
-	public float theta=180;
-	private SplineSegment pastSegment=null;
-
-
+	public Vector3 nextPosition;
+	public Quaternion nextRotation;
+	
+	private GameObject sphere;
+	
+	void Start(){
+		#if DEBUG
+		sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+		sphere.transform.localScale=new Vector3(2*DISTANCE_THRESHOLD,2*DISTANCE_THRESHOLD,2*DISTANCE_THRESHOLD);
+		sphere.renderer.material.color = new Color(0.5f,0.5f,0.5f,0.3f);
+		sphere.renderer.material.shader = Shader.Find("Transparent/Diffuse");
+		#endif
+	}
+	
+	
 	//numbering left to right 0-MAX
-	void Update(){
-		int tmpIndex = this.splineIndex;
-		if (Input.GetAxis ("Horizontal") > 0) {
-			 //Debug.Log ("Horizontal");
-			if (this.splineIndex < this.splineList.Length - 1) {
-					tmpIndex = this.splineIndex + 1;
-			}
-		} else if (Input.GetAxis ("Horizontal") < 0) {
-			//Debug.Log ("Horizontal");
-			if (this.splineIndex > 0) {
-				tmpIndex = this.splineIndex - 1;
-			}
-		}
-		if (tmpIndex != this.splineIndex) {
-			Spline s = this.splineList [tmpIndex];
-			float closeParam = s.GetClosestPointParam (this.transform.position, 5);
-			float closeClampedParam = WrapValue (closeParam + offSet, 0f, 1f, wrapMode);
-			Vector3 closestPoint = s.GetPositionOnSpline (closeClampedParam);
-			float distance = (this.transform.position - closestPoint).magnitude;
-			//Debug.Log (distance);
-			if (distance < DISTANCE_THRESHOLD) {
-				this.spline = s;
-				Debug.Log ("spline change " + this.splineIndex + " to " + tmpIndex);
-				this.splineIndex=tmpIndex;
-				this.transform.position = closestPoint;
-				param = closeParam;
+	void Update ()
+	{
+		float horAxis = 0f;
+		if ((horAxis = Input.GetAxis ("Horizontal")) != 0f) {
+			foreach (Spline s in splineList) {
+				float closeParam = s.GetClosestPointParam (this.transform.position, 5);
+				float closeClampedParam = WrapValue (closeParam + offSet, 0f, 1f, wrapMode);
+				Vector3 closestPoint = s.GetPositionOnSpline (closeClampedParam);
+				float distance = (this.transform.position - closestPoint).magnitude;
+				//Debug.Log (distance);
+				if (distance < DISTANCE_THRESHOLD) {
+					int sNum = int.Parse (s.tag);
+					int splineNum = int.Parse (this.spline.tag);
+					if (horAxis < 0 && sNum < splineNum
+						|| horAxis > 0 && sNum > splineNum) {
+						//splineの乗り換え
+						Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
+						this.spline=s;
+						this.transform.position = closestPoint;
+						param = closeParam;
+						
+						break;
+					}
+				}
 			}
 		}
-		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
-		if (pastSegment == null) {
-			pastSegment = ssegment;
-		}else if (pastSegment!=ssegment) {
-			Vector3 pastVec=(-pastSegment.EndNode.Position+pastSegment.StartNode.Position);
-			Vector3 nextVec=ssegment.EndNode.Position-ssegment.StartNode.Position;
 
-			theta=Vector3.Angle(pastVec,nextVec);
-			pastSegment = ssegment;
-		}
-		if (Input.GetAxis("Vertical")>0) {
-			acc+=Time.deltaTime * speed;
-			if(acc>SPEED_MAX){
-				acc=SPEED_MAX;
+		//  加速処理
+		if (Input.GetAxis ("Vertical") > 0) {
+			acc += Time.deltaTime * speed;
+			if (acc > SPEED_MAX) {
+				acc = SPEED_MAX;
 			}
-		} else if (Input.GetAxis("Vertical")<0) {
+		} else if (Input.GetAxis ("Vertical") < 0) {
 			//pastForce=-Time.deltaTime * speed;
-		}else if(acc>0.00005f){
-			acc*=0.5f;
-		}else{
-			acc=0;
+		} else if (acc > 0.00005f) {
+			acc *= 0.5f;
+		} else {
+			acc = 0;
 		}
-		if (theta<100) {
-			if(acc>LIMITED_SPEED){
-				acc=LIMITED_SPEED;
+
+
+		//カーブ判定
+		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
+		if (ssegment.StartNode.tag == "sharp curve") {
+			Debug.Log ("through :sharp curve");
+			if (acc > LIMITED_SPEED) {
+				acc = LIMITED_SPEED;
 			}
 		}
+
 		param += acc;
 
 		clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
 
 		transform.position = spline.GetPositionOnSpline (clampedParam);
 		transform.rotation = spline.GetOrientationOnSpline (clampedParam);
+		
+		#if DEBUG
+		sphere.transform.position = transform.position;
+		#endif
+
+		float predictParam = WrapValue (param + 0.05f + offSet, 0f, 1f, wrapMode);
+
+		nextPosition = spline.GetPositionOnSpline (predictParam);
+		nextRotation = spline.GetOrientationOnSpline (predictParam);
 	}
 	
 	private float WrapValue( float v, float start, float end, WrapMode wMode ){
