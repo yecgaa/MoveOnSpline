@@ -23,6 +23,8 @@ public class SplineMove : MonoBehaviour{
 	public Quaternion nextRotation;
 	
 	private GameObject sphere;
+	private float changedTime;
+	private float CHANGE_REJECT_TIME=1f;
 	
 	void Start(){
 		#if DEBUG
@@ -31,33 +33,49 @@ public class SplineMove : MonoBehaviour{
 		sphere.renderer.material.color = new Color(0.5f,0.5f,0.5f,0.3f);
 		sphere.renderer.material.shader = Shader.Find("Transparent/Diffuse");
 		#endif
+		
+		changedTime=Time.time;
+		
 	}
 	
-	
-	//numbering left to right 0-MAX
+	//左から昇順に並べる
 	void Update ()
 	{
-		float horAxis = 0f;
-		if ((horAxis = Input.GetAxis ("Horizontal")) != 0f) {
-			foreach (Spline s in splineList) {
-				float closeParam = s.GetClosestPointParam (this.transform.position, 5);
-				float closeClampedParam = WrapValue (closeParam + offSet, 0f, 1f, wrapMode);
-				Vector3 closestPoint = s.GetPositionOnSpline (closeClampedParam);
-				float distance = (this.transform.position - closestPoint).magnitude;
-				//Debug.Log (distance);
-				if (distance < DISTANCE_THRESHOLD) {
-					int sNum = int.Parse (s.tag);
-					int splineNum = int.Parse (this.spline.tag);
-					if (horAxis < 0 && sNum < splineNum
-						|| horAxis > 0 && sNum > splineNum) {
-						//splineの乗り換え
-						Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
-						this.spline=s;
-						this.transform.position = closestPoint;
-						param = closeParam;
+		float horAxis = Input.GetAxis ("Horizontal");
+		if (horAxis != 0f) {
+			if ((Time.time - changedTime) < CHANGE_REJECT_TIME) {
+				#if DEBUG
+				//Debug.Log ("Change of the spline was rejected. Time has not passed since the last change.");
+				#endif
+			} else {
+				try {
+					foreach (Spline s in splineList) {
+						float closeParam = s.GetClosestPointParam (this.transform.position, 5);
+						float closeClampedParam = WrapValue (closeParam + offSet, 0f, 1f, wrapMode);
+						Vector3 closestPoint = s.GetPositionOnSpline (closeClampedParam);
+						float distance = (this.transform.position - closestPoint).magnitude;
 						
-						break;
+						if (distance < DISTANCE_THRESHOLD) {
+							int sNum = int.Parse (s.tag);
+							int splineNum = int.Parse (this.spline.tag);
+							if (horAxis < 0 && sNum < splineNum
+							    || horAxis > 0 && sNum > splineNum) {
+								//splineの乗り換え
+								#if DEBUG
+								Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
+								#endif
+								this.spline = s;
+								this.transform.position = closestPoint;
+								param = closeParam;
+								changedTime = Time.time;
+								break;
+							}
+						}
 					}
+				} catch (UnityException e) {
+					#if DEBUG
+					Debug.Log (e);
+					#endif
 				}
 			}
 		}
@@ -80,7 +98,9 @@ public class SplineMove : MonoBehaviour{
 		//カーブ判定
 		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
 		if (ssegment.StartNode.tag == "sharp curve") {
+			#if DEBUG
 			Debug.Log ("through :sharp curve");
+			#endif
 			if (acc > LIMITED_SPEED) {
 				acc = LIMITED_SPEED;
 			}
@@ -89,16 +109,18 @@ public class SplineMove : MonoBehaviour{
 		param += acc;
 
 		clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
-
-		transform.position = spline.GetPositionOnSpline (clampedParam);
+		Vector3 target;
+		target = spline.GetPositionOnSpline (clampedParam);
+		//transform.position = Vector3.Lerp(transform.position,target,0.1f);
+		transform.position = target;
 		transform.rotation = spline.GetOrientationOnSpline (clampedParam);
 		
 		#if DEBUG
 		sphere.transform.position = transform.position;
 		#endif
 
+		//少し先の予測
 		float predictParam = WrapValue (param + 0.05f + offSet, 0f, 1f, wrapMode);
-
 		nextPosition = spline.GetPositionOnSpline (predictParam);
 		nextRotation = spline.GetOrientationOnSpline (predictParam);
 	}
