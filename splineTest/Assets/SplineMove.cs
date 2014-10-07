@@ -17,9 +17,11 @@ public class SplineMove : MonoBehaviour{
 	public float DISTANCE_THRESHOLD=100f;
 	private float CHANGE_REJECT_TIME=1f;
 	private float SHARP_CURVE=100f;
-
+	private float MOVING_TIME=5f;
+	
 	public float acc = 0;
-
+	private float movingCount=0f;
+	
 	private float param=0f;
 	private float clampedParam=0f;
 
@@ -34,6 +36,7 @@ public class SplineMove : MonoBehaviour{
 	private GameObject right;
 	private GameObject left;
 	
+	private Vector3 moveStartPoint=Vector3.zero;
 	
 	//for debug
 	private GameObject sphere;
@@ -62,11 +65,13 @@ public class SplineMove : MonoBehaviour{
 		
 		changedTime=Time.time;
 		
+		
 	}
 	
 	//左から昇順に並べる
-	void Update ()
-	{
+	void Update (){
+		
+		
 		float horAxis = Input.GetAxis ("Horizontal");
 		if (horAxis != 0f) {
 			if ((Time.time - changedTime) < CHANGE_REJECT_TIME) {
@@ -83,11 +88,11 @@ public class SplineMove : MonoBehaviour{
 						float distance = targetVector.magnitude;
 						
 						if (distance < DISTANCE_THRESHOLD) {
-							Vector3 leftVec=(left.transform.position - transform.position);
-							Vector3 rightVec=(right.transform.position - transform.position);
+							Vector3 leftVec = (left.transform.position - transform.position);
+							Vector3 rightVec = (right.transform.position - transform.position);
 							
-							if((horAxis > 0 && Vector3.Angle(targetVector,rightVec)<=90
-							|| horAxis < 0 && Vector3.Angle(targetVector,leftVec)<=90)==false){
+							if ((horAxis > 0 && Vector3.Angle (targetVector, rightVec) <= 90
+							    || horAxis < 0 && Vector3.Angle (targetVector, leftVec) <= 90) == false) {
 								continue;
 							}
 							
@@ -96,7 +101,7 @@ public class SplineMove : MonoBehaviour{
 							Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
 							#endif
 							this.spline = s;
-							this.transform.position = closestPoint;
+							moveStartPoint = this.transform.position;
 							param = closeParam;
 							changedTime = Time.time;
 							break;
@@ -136,7 +141,7 @@ public class SplineMove : MonoBehaviour{
 				theta = Vector3.Angle (pastVec, nextVec);
 				Debug.Log (theta);
 				#if DEBUG
-				if(theta<=SHARP_CURVE){
+				if (theta <= SHARP_CURVE) {
 					Debug.Log ("through :sharp curve");
 				}
 				#endif
@@ -159,9 +164,23 @@ public class SplineMove : MonoBehaviour{
 		clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
 		Vector3 target;
 		target = spline.GetPositionOnSpline (clampedParam);
-		//transform.position = Vector3.Lerp(transform.position,target,0.1f);
-		transform.position = target;
+		
+		if (moveStartPoint == Vector3.zero) {
+			transform.position = target;
+		} else if(movingCount>MOVING_TIME){ 
+			transform.position=target;
+			moveStartPoint=Vector3.zero;
+			Debug.Log(movingCount+","+MOVING_TIME);
+			movingCount=0f;
+		} else {
+			Vector3 startToTarget = (target - transform.position);
+			float movingParam = movingCount/MOVING_TIME;
+			target=new Vector3(startToTarget.x*movingParam,startToTarget.y*movingParam,startToTarget.z*movingParam);
+			transform.position+=target;
+			movingCount+=Time.deltaTime;
+		}
 		transform.rotation = spline.GetOrientationOnSpline (clampedParam);
+
 		
 		#if DEBUG
 		sphere.transform.position = transform.position;
