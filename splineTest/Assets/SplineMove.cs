@@ -22,19 +22,38 @@ public class SplineMove : MonoBehaviour{
 	public Vector3 nextPosition;
 	public Quaternion nextRotation;
 	
-	private GameObject sphere;
 	private float changedTime;
 	private float CHANGE_REJECT_TIME=1f;
 	
 	private SplineSegment pastSegment=null;
 	
+	private GameObject right;
+	private GameObject left;
+	
+	
+	//for debug
+	private GameObject sphere;
+	private GameObject rightCube;
+	private GameObject leftCube;
 	
 	void Start(){
 		#if DEBUG
+		//changeSpline 判定
 		sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
 		sphere.transform.localScale=new Vector3(2*DISTANCE_THRESHOLD,2*DISTANCE_THRESHOLD,2*DISTANCE_THRESHOLD);
 		sphere.renderer.material.color = new Color(0.5f,0.5f,0.5f,0.3f);
 		sphere.renderer.material.shader = Shader.Find("Transparent/Diffuse");
+		
+		//左右ベクトル判定
+		right = transform.Find("right").gameObject;
+		left = transform.Find("left").gameObject;
+		
+		rightCube=GameObject.CreatePrimitive(PrimitiveType.Cube);
+		rightCube.renderer.material.color = Color.red;
+		
+		leftCube=GameObject.CreatePrimitive(PrimitiveType.Cube);
+		leftCube.renderer.material.color = Color.blue;
+		
 		#endif
 		
 		changedTime=Time.time;
@@ -120,12 +139,6 @@ public class SplineMove : MonoBehaviour{
 		}
 		pastSegment = ssegment;
 		
-		
-		
-		
-		
-		
-
 		param += acc;
 
 		clampedParam = WrapValue (param + offSet, 0f, 1f, wrapMode);
@@ -143,6 +156,14 @@ public class SplineMove : MonoBehaviour{
 		float predictParam = WrapValue (param + 0.05f + offSet, 0f, 1f, wrapMode);
 		nextPosition = spline.GetPositionOnSpline (predictParam);
 		nextRotation = spline.GetOrientationOnSpline (predictParam);
+		
+		#if DEBUG
+		rightCube.transform.position=right.transform.position;
+		rightCube.transform.rotation = transform.rotation;
+		
+		leftCube.transform.position=left.transform.position;
+		leftCube.transform.rotation = transform.rotation;
+		#endif
 	}
 	
 	private float WrapValue( float v, float start, float end, WrapMode wMode ){
