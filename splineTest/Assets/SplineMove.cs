@@ -10,12 +10,16 @@ public class SplineMove : MonoBehaviour{
 	
 	public float speed = 0.0001f;
 	public float offSet = 0f;
+	
+	//constant
 	public float SPEED_MAX=0.001f;
 	public float LIMITED_SPEED = 0.001f;
+	public float DISTANCE_THRESHOLD=100f;
+	private float CHANGE_REJECT_TIME=1f;
+	private float SHARP_CURVE=100f;
 
 	public float acc = 0;
 
-	public float DISTANCE_THRESHOLD=100f;
 	private float param=0f;
 	private float clampedParam=0f;
 
@@ -23,9 +27,9 @@ public class SplineMove : MonoBehaviour{
 	public Quaternion nextRotation;
 	
 	private float changedTime;
-	private float CHANGE_REJECT_TIME=1f;
 	
 	private SplineSegment pastSegment=null;
+	private float theta=0f;
 	
 	private GameObject right;
 	private GameObject left;
@@ -75,23 +79,27 @@ public class SplineMove : MonoBehaviour{
 						float closeParam = s.GetClosestPointParam (this.transform.position, 5);
 						float closeClampedParam = WrapValue (closeParam + offSet, 0f, 1f, wrapMode);
 						Vector3 closestPoint = s.GetPositionOnSpline (closeClampedParam);
-						float distance = (this.transform.position - closestPoint).magnitude;
+						Vector3 targetVector = (closestPoint - this.transform.position);
+						float distance = targetVector.magnitude;
 						
 						if (distance < DISTANCE_THRESHOLD) {
-							int sNum = int.Parse (s.tag);
-							int splineNum = int.Parse (this.spline.tag);
-							if (horAxis < 0 && sNum < splineNum
-							    || horAxis > 0 && sNum > splineNum) {
-								//splineの乗り換え
-								#if DEBUG
-								Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
-								#endif
-								this.spline = s;
-								this.transform.position = closestPoint;
-								param = closeParam;
-								changedTime = Time.time;
-								break;
+							Vector3 leftVec=(left.transform.position - transform.position);
+							Vector3 rightVec=(right.transform.position - transform.position);
+							
+							if((horAxis > 0 && Vector3.Angle(targetVector,rightVec)<=90
+							|| horAxis < 0 && Vector3.Angle(targetVector,leftVec)<=90)==false){
+								continue;
 							}
+							
+							//splineの乗り換え
+							#if DEBUG
+							Debug.Log ("spline change " + this.spline.tag + " to " + s.tag);
+							#endif
+							this.spline = s;
+							this.transform.position = closestPoint;
+							param = closeParam;
+							changedTime = Time.time;
+							break;
 						}
 					}
 				} catch (UnityException e) {
@@ -118,14 +126,6 @@ public class SplineMove : MonoBehaviour{
 
 		//カーブ判定
 		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
-		if (ssegment.StartNode.tag == "sharp curve") {
-			#if DEBUG
-			Debug.Log ("through :sharp curve");
-			#endif
-			if (acc > LIMITED_SPEED) {
-				acc = LIMITED_SPEED;
-			}
-		}
 		
 		if (pastSegment != null) {
 			
@@ -133,11 +133,26 @@ public class SplineMove : MonoBehaviour{
 				Vector3 pastVec = (-pastSegment.EndNode.Position + pastSegment.StartNode.Position);
 				Vector3 nextVec = ssegment.EndNode.Position - ssegment.StartNode.Position;
 
-				float theta = Vector3.Angle (pastVec, nextVec);
+				theta = Vector3.Angle (pastVec, nextVec);
 				Debug.Log (theta);
+				#if DEBUG
+				if(theta<=SHARP_CURVE){
+					Debug.Log ("through :sharp curve");
+				}
+				#endif
+
+				pastSegment = ssegment;
+			}
+		} else {
+			pastSegment = ssegment;
+		}
+		
+				
+		if (theta <= SHARP_CURVE) {
+			if (acc > LIMITED_SPEED) {
+				acc = LIMITED_SPEED;
 			}
 		}
-		pastSegment = ssegment;
 		
 		param += acc;
 
