@@ -26,6 +26,9 @@ public class SplineMove : MonoBehaviour{
 	private float changedTime;
 	private float CHANGE_REJECT_TIME=1f;
 	
+	private SplineSegment pastSegment=null;
+	
+	
 	void Start(){
 		#if DEBUG
 		sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -94,7 +97,6 @@ public class SplineMove : MonoBehaviour{
 			acc = 0;
 		}
 
-
 		//カーブ判定
 		SplineSegment ssegment = this.spline.GetSplineSegment (clampedParam);
 		if (ssegment.StartNode.tag == "sharp curve") {
@@ -105,6 +107,24 @@ public class SplineMove : MonoBehaviour{
 				acc = LIMITED_SPEED;
 			}
 		}
+		
+		if (pastSegment != null) {
+			
+			if (pastSegment.EndNode.Position != ssegment.EndNode.Position) {
+				Vector3 pastVec = (-pastSegment.EndNode.Position + pastSegment.StartNode.Position);
+				Vector3 nextVec = ssegment.EndNode.Position - ssegment.StartNode.Position;
+
+				float theta = Vector3.Angle (pastVec, nextVec);
+				Debug.Log (theta);
+			}
+		}
+		pastSegment = ssegment;
+		
+		
+		
+		
+		
+		
 
 		param += acc;
 
